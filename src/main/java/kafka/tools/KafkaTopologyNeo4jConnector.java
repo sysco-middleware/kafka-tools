@@ -2,39 +2,30 @@ package kafka.tools;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.admin.DescribeClusterOptions;
-import org.apache.kafka.clients.admin.DescribeClusterResult;
-import org.apache.kafka.clients.admin.TopicDescription;
+import kafka.tools.internal.KafkaAdminClientSupplier;
+import kafka.tools.internal.Neo4jDriverSupplier;
+import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartitionInfo;
-import org.neo4j.driver.v1.AuthTokens;
 import org.neo4j.driver.v1.Driver;
-import org.neo4j.driver.v1.GraphDatabase;
 import org.neo4j.driver.v1.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Properties;
+import java.util.Set;
 
 public class KafkaTopologyNeo4jConnector {
-    static final Logger LOGGER = LoggerFactory.getLogger(KafkaTopologyNeo4jConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaTopologyNeo4jConnector.class);
 
     public static void main(String[] args) throws Exception {
         Config config = ConfigFactory.load();
 
-        Properties adminConfig = new Properties();
-        adminConfig.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap-servers"));
-
-        AdminClient adminClient = AdminClient.create(adminConfig);
+        AdminClient adminClient = new KafkaAdminClientSupplier().get();
 
         DescribeClusterResult describeClusterResult =
                 adminClient.describeCluster(new DescribeClusterOptions());
 
-        Driver driver = GraphDatabase.driver(config.getString("neo4j.uri"),
-                AuthTokens.basic(config.getString("neo4j.auth.username"), config.getString("neo4j.auth.password")));
-
+        Driver driver = new Neo4jDriverSupplier().get();
 
         String clusterName = config.getString("kafka.cluster-name");
 
@@ -71,16 +62,17 @@ public class KafkaTopologyNeo4jConnector {
                     "MERGE (n)-[:KAFKA_BROKER_FROM]->(c)" +
                     "RETURN n");
 
-            if (node.hasRack()) {
+            //if (node.hasRack()) {
                 //TODO add racks to graph
-            }
+            //}
         }
     }
 
     private static void indexTopics(AdminClient adminClient,
                                     Session session,
                                     String clusterId) throws Exception {
-        for (TopicDescription topic : adminClient.describeTopics(adminClient.listTopics().names().get()).all().get().values()) {
+        final Set<String> topicNames = adminClient.listTopics(new ListTopicsOptions().listInternal(true)).names().get();
+        for (TopicDescription topic : adminClient.describeTopics(topicNames).all().get().values()) {
             LOGGER.info("Indexing topic: {}", topic.name());
             session.run("" +
                     "MATCH (c:KafkaCluster) " +

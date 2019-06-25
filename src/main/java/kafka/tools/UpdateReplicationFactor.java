@@ -2,33 +2,45 @@ package kafka.tools;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
+import kafka.tools.internal.KafkaAdminClientSupplier;
 import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartitionInfo;
 
-import java.util.*;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.*;
 
 public class UpdateReplicationFactor {
 
+    AdminClient adminClient = KafkaAdminClientSupplier.create();
+
     public static void main(String[] args) throws Exception {
-        Config config = ConfigFactory.load();
+        List<String> lines = Files.readAllLines(Paths.get("topics-to-reassign"));
 
-        Properties adminConfig = new Properties();
-        adminConfig.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap-servers"));
+        UpdateReplicationFactor tool = new UpdateReplicationFactor();
 
-        AdminClient adminClient = AdminClient.create(adminConfig);
+        if (Files.notExists(Paths.get("target/reassignment"))) {
+            new File("target/reassignment").mkdir();
+        }
 
-        if (args.length != 2)
-            throw new IllegalArgumentException("Wrong args. execute command with args: <topic name> <target replication factor>");
+        for (String topicName : lines) {
+            String json = tool.replicationFactorJson(topicName, (short) 3);
+            Files.write(Paths.get("target/reassignment/" + topicName + ".json"), json.getBytes(UTF_8));
+        }
+    }
 
-        String topicName = args[0];
-        Short targetReplicationFactor = Short.valueOf(args[1]);
-
+    public String replicationFactorJson(String topicName, Short targetReplicationFactor) throws ExecutionException, InterruptedException {
         TopicDescription topicDescription =
                 adminClient.describeTopics(Collections.singletonList(topicName)).all().get().get(topicName);
         Collection<Node> nodes = adminClient.describeCluster().nodes().get();
@@ -53,6 +65,7 @@ public class UpdateReplicationFactor {
                     new PartitionReassignmentJson.Partition(topicDescription.name(), tp.partition(), currentReplicas));
         }
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        System.out.println(gson.toJson(builder.build()));
+        final String json = gson.toJson(builder.build());
+        return json;
     }
 }

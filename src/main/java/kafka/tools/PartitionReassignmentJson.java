@@ -1,9 +1,5 @@
 package kafka.tools;
 
-import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.common.Node;
-import org.apache.kafka.common.TopicPartitionInfo;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,22 +12,9 @@ public class PartitionReassignmentJson {
         this.partitions = partitions;
     }
 
-    public static PartitionReassignmentJson parse(TopicDescription topicDescription) {
-        final Builder builder = new Builder();
-        for(TopicPartitionInfo tp : topicDescription.partitions()) {
-            List<Integer> replicas = new ArrayList<Integer>();
-            for(Node node: tp.replicas()) {
-                replicas.add(node.id());
-            }
-            builder.addPartition(new Partition(topicDescription.name(), tp.partition(), replicas));
-        }
-        return builder.build();
-    }
-
     static Builder newBuilder() {
         return new Builder();
     }
-
 
     static class Partition {
         final String topic;
