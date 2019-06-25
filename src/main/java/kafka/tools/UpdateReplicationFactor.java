@@ -9,7 +9,6 @@ import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartitionInfo;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
@@ -19,7 +18,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class UpdateReplicationFactor {
 
@@ -30,13 +29,17 @@ public class UpdateReplicationFactor {
 
         UpdateReplicationFactor tool = new UpdateReplicationFactor();
 
-        if (Files.notExists(Paths.get("target/reassignment"))) {
-            new File("target/reassignment").mkdir();
+        final String targetDir = "target/reassignment";
+
+        if (Files.notExists(Paths.get(targetDir))) {
+            new File(targetDir).mkdir();
+        } else {
+            new File(targetDir).delete();
         }
 
         for (String topicName : lines) {
             String json = tool.replicationFactorJson(topicName, (short) 3);
-            Files.write(Paths.get("target/reassignment/" + topicName + ".json"), json.getBytes(UTF_8));
+            Files.write(Paths.get(targetDir + "/" + topicName + ".json"), json.getBytes(UTF_8));
         }
     }
 
